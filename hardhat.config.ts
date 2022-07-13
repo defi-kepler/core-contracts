@@ -11,12 +11,12 @@ export default {
     },
     bsc_test: {
       url: "https://data-seed-prebsc-1-s2.binance.org:8545/",
-      accounts: ["", ""],
+      accounts: [],
       timeout: 60000
     },
     dev: {
       url: "http://127.0.0.1:7545//",
-      accounts: [""],
+      accounts: [],
       timeout: 60000
     },
     mainnet: {
@@ -41,7 +41,7 @@ export default {
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
   solidity: {
-    compilers: [    //可指定多个sol版本
+    compilers: [    
     {version: "0.8.4"},
     {version: "0.5.16"},
     {version: "0.6.6"}

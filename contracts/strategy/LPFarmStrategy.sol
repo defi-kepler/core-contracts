@@ -1,23 +1,27 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
-import '@openzeppelin/contracts/access/Ownable.sol';
+
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Context.sol";
 import '../interface/IStrategy.sol';
 import '../interface/IPancakePair.sol';
 import '../interface/IPancakeRouter.sol';
 import '../interface/IPancakeFarm.sol';
+import '../interface/IPuppetOfDispatcher.sol';
 /**
  * pancakeswapLP farm strategy 
  */
-contract LPFarmStrategy is Ownable, ReentrancyGuard, IStrategy{
+contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispatcher{
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     event Harvest(uint256 token0Amount, uint256 token1Amount, uint256  farmRewardAmount);
-
+    event Sweep(address token, address recipient, uint256 amount);
+    event SetOperator(address indexed user, bool allow );
+    
     address public  lptoken;
     address public  router;
     address public  farm ;
@@ -25,44 +29,50 @@ contract LPFarmStrategy is Ownable, ReentrancyGuard, IStrategy{
     uint256 public swapLimit = 1e3;
     uint256 public poolId = 0;
     address public dispatcher;
-    mapping(address => bool) operators;
-    
-    modifier onlyOperator() {
-        require(operators[msg.sender], "sender is not operator");
+    mapping(address => bool) public operators;
+
+    modifier onlyDispatcher() {
+        require(_msgSender() == dispatcher, "LPFarmStrategy:sender is not dispatcher");
         _;
     }
-    
+    modifier onlyOperator() {
+        require(operators[_msgSender()], "LPFarmStrategy: sender is not operator");
+        _;
+    }
     constructor(address _lptoken, address _farmRewardToken,  address _router, address _farm, address _dispatcher) {
         lptoken = _lptoken;
         router = _router;
         farm = _farm;
         farmRewardToken = _farmRewardToken;
-        operators[msg.sender] = true;
-        operators[_dispatcher] = true;
         dispatcher = _dispatcher;
+        operators[msg.sender] = true;
+        operators[dispatcher] = true;
     }
     
      // Call initApprove before calling
-    function withdraw(uint256 _share) external override onlyOperator  {
-         require(_share > 0 && _share <= 100, "LPFarmStrategy: share is zero");  
+    function withdrawToDispatcher(uint256 leaveAmount) external override onlyDispatcher  {
+         require(leaveAmount > 0, "LPFarmStrategy: leaveAmount is zero");
          IPancakeFarm pancakeFarm = IPancakeFarm(farm);
-        (uint256 amount,) = pancakeFarm.userInfo(poolId, address(this));
-         uint256 leaveAmount = amount.mul(_share).div(100);
          pancakeFarm.withdraw(poolId, leaveAmount);
          IPancakePair pair = IPancakePair(lptoken);
          IPancakeRouter(router).removeLiquidity(pair.token0(), pair.token1(), leaveAmount, 0, 0, dispatcher, block.timestamp.add(300)); 
+         harvest();
     }
 
-    function harvest() external override onlyOperator{
+    function harvest() public override onlyDispatcher{
         IPancakeFarm pancakeFarm = IPancakeFarm(farm);
         (uint256 amount,) = pancakeFarm.userInfo(poolId, address(this));
-        require(amount > 0, "LPFarmStrategy: amount is zero");
-        IPancakeFarm(farm).withdraw(poolId, 0);
-        uint256 balance = IERC20(farmRewardToken).balanceOf(address(this));
-        if(balance > 0) {
-            IERC20(farmRewardToken).safeTransfer(dispatcher, balance);
+        if (amount > 0) {
+            IPancakeFarm(farm).withdraw(poolId, 0);
         }
+        uint256 balance = IERC20(farmRewardToken).balanceOf(address(this));
         IPancakePair pair = IPancakePair(lptoken);
+        if(balance > 0 && farmRewardToken != pair.token0() &&  pair.token1() != farmRewardToken) {
+          address[] memory path = new address[](2);
+          path[0] = farmRewardToken;
+          path[1] = pair.token0();
+          IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(balance, 0 ,path, address(this), block.timestamp.add(300));
+        }
         uint256 balanceA = IERC20(pair.token0()).balanceOf(address(this));
         if(balanceA > 0) {
             IERC20(pair.token0()).safeTransfer(dispatcher, balanceA);
@@ -75,20 +85,8 @@ contract LPFarmStrategy is Ownable, ReentrancyGuard, IStrategy{
     }
 
     // Call initApprove before calling
-    function executeStrategy() external override onlyOperator nonReentrant{
+    function executeStrategy() external override onlyDispatcher nonReentrant{
         IPancakePair pair = IPancakePair(lptoken);
-        uint256 allowanceA = IERC20(pair.token0()).allowance(dispatcher, address(this));
-        uint256 allowanceB = IERC20(pair.token1()).allowance(dispatcher, address(this));
-        uint256 balanceOf0Dispatcher = IERC20(pair.token0()).balanceOf(dispatcher);
-        uint256 balanceOf1Dispatcher = IERC20(pair.token1()).balanceOf(dispatcher);
-        allowanceA = allowanceA > balanceOf0Dispatcher ? balanceOf0Dispatcher: allowanceA;
-        allowanceB = allowanceB > balanceOf1Dispatcher ? balanceOf1Dispatcher: allowanceB;
-        if(allowanceA > 0) {
-            IERC20(pair.token0()).safeTransferFrom(dispatcher, address(this), allowanceA);
-        }
-         if(allowanceB > 0) {
-            IERC20(pair.token1()).safeTransferFrom(dispatcher, address(this), allowanceB);
-        }
         uint256 balanceA =  IERC20(pair.token0()).balanceOf(address(this));
         uint256 balanceB =  IERC20(pair.token1()).balanceOf(address(this));
         require(balanceA > 0 || balanceB > 0, "LPFarmStrategy: balanceA and balanceB are zero");
@@ -121,7 +119,7 @@ contract LPFarmStrategy is Ownable, ReentrancyGuard, IStrategy{
         IPancakeFarm(farm).deposit(poolId, pair.balanceOf(address(this)));
     }
 
-    function totalAmount() external  view returns(uint256) {
+    function totalAmount() external override view returns(uint256) {
         IPancakeFarm pancakeFarm = IPancakeFarm(farm);
         (uint256 amount,) = pancakeFarm.userInfo(poolId, address(this));
         return amount;
@@ -154,46 +152,48 @@ contract LPFarmStrategy is Ownable, ReentrancyGuard, IStrategy{
         require(token0 != address(0), "LPFarmStrategy: ZERO_ADDRESS");
     }
 
-    function setSwapLimit(uint256 _swapLimit) external onlyOwner {
-       swapLimit = _swapLimit;
+    function setDispatcher(address _dispatcher) external override onlyDispatcher{
+        require(_dispatcher != address(0), "LPFarmStrategy: ZERO_ADDRESS");
+        dispatcher = _dispatcher;
     }
 
-    function setPoolId(uint256 _poolId) external onlyOwner {
-        poolId = _poolId;
+    function setOperator(address user, bool allow) external override onlyDispatcher{
+        require(user != address(0), "WithdrawalAccount: ZERO_ADDRESS");
+        operators[user] = allow;
+        emit SetOperator(user, allow);
     }
 
-    function sweep(address stoken, address recipient) external onlyOwner {
+    function sweep(address stoken, address recipient) external onlyOperator {
       require(recipient != address(0), "LPFarmStrategy: ZERO_ADDRESS");
        uint256 balance = IERC20(stoken).balanceOf(address(this));
        if(balance > 0) {
            IERC20(stoken).safeTransfer(recipient, balance);
+           emit Sweep(stoken, recipient, balance);
        }
     }
 
-    function setDispatcher(address _dispatcher) external onlyOwner{
-        require(_dispatcher != address(0), "LPFarmStrategy: ZERO_ADDRESS");
-        operators[_dispatcher] = true;
-        dispatcher = _dispatcher;
+    function setSwapLimit(uint256 _swapLimit) external onlyOperator {
+       swapLimit = _swapLimit;
     }
 
-    function setOperator(address user, bool allow) external onlyOwner{
-        require(user != address(0), "LPFarmStrategy: ZERO_ADDRESS");
-        operators[user] = allow;
+    function setPoolId(uint256 _poolId) external onlyOperator {
+        poolId = _poolId;
     }
 
-    function approveTokenToRouter(address token,  uint256 amount) public onlyOwner{
+    function approveTokenToRouter(address token,  uint256 amount) public onlyOperator{
         require(amount > 0, "LPFarmStrategy: INSUFFICIENT_AMOUNT");
         IERC20(token).approve(router, amount);
     }
 
-    function approveLptokenToFarm( uint256 amount) public onlyOwner{
+    function approveLptokenToFarm( uint256 amount) public onlyOperator{
         require(amount > 0, "LPFarmStrategy: INSUFFICIENT_AMOUNT");
         IERC20(lptoken).approve(farm, amount);
     }
 
-    function initApprove() external onlyOwner{
+    function initApprove() external onlyOperator{
         approveTokenToRouter(IPancakePair(lptoken).token0(), ~uint256(0));
         approveTokenToRouter(IPancakePair(lptoken).token1(), ~uint256(0));
+        approveTokenToRouter(farmRewardToken, ~uint256(0));
         approveTokenToRouter(lptoken, ~uint256(0));
         approveLptokenToFarm( ~uint256(0));
     }
