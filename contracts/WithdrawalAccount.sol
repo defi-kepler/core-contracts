@@ -68,9 +68,8 @@ contract WithdrawalAccount is Context, ReentrancyGuard, IPuppetOfDispatcher,IRec
     }
 
     function withdrawToDispatcher(uint256 leaveAmount) external override  onlyDispatcher  {
-        uint256 balanceOf = IERC20(token).balanceOf(address(this));
-        require(leaveAmount > 0, "WithdrawalAccount: Insufficient balance");
-        IERC20(token).safeTransfer(dispatcher, balanceOf);
+        require(leaveAmount > 0, "WithdrawalAccount: leaveAmount is zero");
+        IERC20(token).safeTransfer(dispatcher, leaveAmount);
     }
 
    function totalAmount() external override view returns(uint256) {

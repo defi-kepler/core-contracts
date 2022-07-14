@@ -41,9 +41,8 @@ contract ChainBridgeStrategy is Context, IChainBridgeStrategy,IPuppetOfDispatche
     }
 
     function withdrawToDispatcher(uint256 leaveAmount) external override  onlyDispatcher  {
-        uint256 balanceOf = IERC20(receiveToken).balanceOf(address(this));
-        require(leaveAmount > 0, "ChainBridgeStrategy: Insufficient balance");
-        IERC20(receiveToken).safeTransfer(dispatcher, balanceOf);
+        require(leaveAmount > 0, "ChainBridgeStrategy: LeaveAmount is zero");
+        IERC20(receiveToken).safeTransfer(dispatcher, leaveAmount);
     }
 
     function harvest(address token) external  override onlyDispatcher returns (uint256)  {
@@ -54,7 +53,6 @@ contract ChainBridgeStrategy is Context, IChainBridgeStrategy,IPuppetOfDispatche
     }
     
     function totalAmount() external override view returns(uint256) {
-      
         return IERC20(receiveToken).balanceOf(address(this));
     }
 
