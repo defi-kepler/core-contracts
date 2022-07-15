@@ -1,0 +1,5 @@
+dispatcher deployed to: 0x74f9DFbfF26794BAf3EF0CF8dA006a5f073dff5A
+treasury deployed to: 0xB8113f90b46B56dda13aFb4cd2af111e1419C841
+withdrawalAccount deployed to: 0xA6071957B0FC75f5CB7843baDD6599a8C6f62f4b
+chainBridgeStrategy deployed to: 0x6480A8f56131c3E9Af5e1B88a7EC4cCB26444AC4
+lpFarmStrategy deployed to: 0xecD16af958Ee2b80F3D905704c8799b328a98019

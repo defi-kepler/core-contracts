@@ -1,1 +1,7 @@
 node_modules
+hardhat.config
+artifacts/
+cache/
+package-lock.json
+typechain/
+yarn.lock
