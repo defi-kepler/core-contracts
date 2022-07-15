@@ -87,7 +87,7 @@ describe("Dispatcher", () => {
      })
 
      it('test strategyWithdraw', async ()=> {
-         const three = one.mul(3)
+         const three = one.mul(5)
          await token0.approve(treasury.address, three)
          await treasury.deposit(three);
          await dispatcher.treasuryWithdrawAndDispatch(treasury.address)
