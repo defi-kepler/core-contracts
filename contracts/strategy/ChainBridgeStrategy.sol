@@ -67,7 +67,7 @@ contract ChainBridgeStrategy is Context, IChainBridgeStrategy,IPuppetOfDispatche
         dispatcher = _dispatcher;
     }
 
-    function receiveFunds(address token, address to, uint256 amount) external onlyOperator {
+    function receiveFunds(address token, address to, uint256 amount) external override onlyOperator {
          require(token != address(0), "ChainBridgeStrategy: token is zero address");
          require(to != address(0), "ChainBridgeStrategy: to is zero address");  
          require(amount !=0, "ChainBridgeStrategy: amount is zero");  
