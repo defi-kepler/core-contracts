@@ -16,8 +16,8 @@ contract FundAI is Ownable {
         bridgeStrategy = _bridgeStrategy;
     }
 
-    function receiveFunds(address token, address to, uint256 amount) external onlyOwner{
-        IChainBridgeStrategy(bridgeStrategy).receiveFunds(token, to, amount);
+    function receiveFunds(address token,  uint256 amount) external onlyOwner{
+        IChainBridgeStrategy(bridgeStrategy).receiveFunds(token, address(this), amount);
     }
 
     function sweep(address stoken, address recipient) external onlyOwner{
