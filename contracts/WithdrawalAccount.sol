@@ -29,6 +29,8 @@ contract WithdrawalAccount is Context, ReentrancyGuard, IPuppetOfDispatcher,IRec
         _;
     }
     constructor(address _token, address _dispatcher) {
+        require(token != address(0), "WithdrawalAccount: _token is zero address");
+        require(_dispatcher != address(0), "WithdrawalAccount: _dispatcher is zero address");
         token = _token;
         dispatcher = _dispatcher;
         operators[msg.sender] = true;

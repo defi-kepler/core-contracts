@@ -42,6 +42,8 @@ contract Dispatcher is Ownable, ReentrancyGuard {
     }
 
     constructor(address _token0, address _token1) {
+        require(token0 != address(0), "Dispatcher: _token0 is zero address");
+        require(_token1 != address(0), "Dispatcher: _token1 is zero address");
         token0 = _token0;
         token1 = _token1;
         operators[_msgSender()] = true;  

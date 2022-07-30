@@ -40,6 +40,11 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
         _;
     }
     constructor(address _lptoken, address _farmRewardToken,  address _router, address _farm, address _dispatcher) {
+        require(_lptoken != address(0), "LPFarmStrategy: ZERO_ADDRESS");
+        require(_farmRewardToken != address(0), "LPFarmStrategy: ZERO_ADDRESS");
+        require(_router != address(0), "LPFarmStrategy: ZERO_ADDRESS");
+        require(_farm != address(0), "LPFarmStrategy: ZERO_ADDRESS");
+        require(_dispatcher != address(0), "LPFarmStrategy: ZERO_ADDRESS");
         lptoken = _lptoken;
         router = _router;
         farm = _farm;
@@ -158,7 +163,7 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
     }
 
     function setOperator(address user, bool allow) external override onlyDispatcher{
-        require(user != address(0), "WithdrawalAccount: ZERO_ADDRESS");
+        require(user != address(0), "LPFarmStrategy: ZERO_ADDRESS");
         operators[user] = allow;
         emit SetOperator(user, allow);
     }

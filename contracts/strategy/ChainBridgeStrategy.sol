@@ -29,6 +29,8 @@ contract ChainBridgeStrategy is Context, IChainBridgeStrategy,IPuppetOfDispatche
     }
 
     constructor(address _receiveToken, address _dispatcher) {
+        require(dispatcher != address(0), "ChainBridgeStrategy: ZERO_ADDRESS");
+        require(_receiveToken != address(0), "ChainBridgeStrategy: ZERO_ADDRESS");
         dispatcher = _dispatcher;
         receiveToken = _receiveToken;
         operators[msg.sender] = true;

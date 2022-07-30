@@ -21,6 +21,8 @@ contract Treasury is ReentrancyGuard,Context,IPuppetOfDispatcher {
     mapping(address => bool) public operators;
 
     constructor(address _token, address _dispatcher) {
+        require(_token != address(0), "Treasury: _token is zero address");
+        require(_dispatcher != address(0), "Treasury: _dispatcher is zero address");
         token = _token;
         dispatcher = _dispatcher;
         operators[msg.sender] = true;
