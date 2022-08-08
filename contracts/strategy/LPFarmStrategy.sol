@@ -11,8 +11,9 @@ import '../interface/IPancakePair.sol';
 import '../interface/IPancakeRouter.sol';
 import '../interface/IPancakeFarm.sol';
 import '../interface/IPuppetOfDispatcher.sol';
+
 /**
- * pancakeswapLP farm strategy 
+ * pancakeswapLP farm strateg, Only stable currency trading pairs are supported
  */
 contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispatcher{
     using SafeMath for uint256;
@@ -24,11 +25,14 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
     
     address public  lptoken;
     address public  router;
-    address public  farm ;
-    address public  farmRewardToken ;
+    address public  farm;
+    address public  farmRewardToken;
+    address public dispatcher;
+    
     uint256 public swapLimit = 1e3;
     uint256 public poolId = 0;
-    address public dispatcher;
+    // Setting a high slippage tolerance can help transactions succeed, but you may not get such a good price. Use with caution.
+    uint256 public stableSlippageTolerance = 9950;
     mapping(address => bool) public operators;
 
     modifier onlyDispatcher() {
@@ -72,11 +76,8 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
         }
         uint256 balance = IERC20(farmRewardToken).balanceOf(address(this));
         IPancakePair pair = IPancakePair(lptoken);
-        if(balance > 0 && farmRewardToken != pair.token0() &&  pair.token1() != farmRewardToken) {
-          address[] memory path = new address[](2);
-          path[0] = farmRewardToken;
-          path[1] = pair.token0();
-          IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(balance, 0 ,path, address(this), block.timestamp.add(300));
+        if(balance > 0) {
+            IERC20(farmRewardToken).safeTransfer(dispatcher, balance);
         }
         uint256 balanceA = IERC20(pair.token0()).balanceOf(address(this));
         if(balanceA > 0) {
@@ -106,7 +107,8 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
                 amountAOptimal = quote(balanceB, reserveB, reserveA);
             }
             uint256 swapAmount = balanceA.sub(amountAOptimal).div(2);
-            IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(swapAmount, 0 ,path, address(this), block.timestamp.add(300));
+            uint256 minimumAmount = swapAmount.mul(stableSlippageTolerance).div(10000);
+            IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(swapAmount, minimumAmount ,path, address(this), block.timestamp.add(300));
         } else if(timesOfA > balanceA.add(swapLimit)) {
             address[] memory path = new address[](2);
             path[0] = pair.token1();
@@ -116,11 +118,14 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
                 amountBOptimal = quote(balanceA, reserveA, reserveB);
             }
             uint256 swapAmount = balanceB.sub(amountBOptimal).div(2);
-            IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(swapAmount, 0 ,path, address(this), block.timestamp.add(300));
+            uint256 minimumAmount = swapAmount.mul(stableSlippageTolerance).div(10000);
+            IPancakeRouter(router).swapExactTokensForTokensSupportingFeeOnTransferTokens(swapAmount, minimumAmount,path, address(this), block.timestamp.add(300));
         }
         balanceA = IERC20(pair.token0()).balanceOf(address(this));
         balanceB = IERC20(pair.token1()).balanceOf(address(this));
-        IPancakeRouter(router).addLiquidity(pair.token0(), pair.token1(), balanceA, balanceB, 0, 0, address(this), block.timestamp.add(300));
+        uint256 minimumAmountA = balanceA.mul(stableSlippageTolerance).div(10000);
+        uint256 minimumAmountB = balanceA.mul(stableSlippageTolerance).div(10000);
+        IPancakeRouter(router).addLiquidity(pair.token0(), pair.token1(), balanceA, balanceB, minimumAmountA, minimumAmountB, address(this), block.timestamp.add(300));
         IPancakeFarm(farm).deposit(poolId, pair.balanceOf(address(this)));
     }
 
@@ -179,6 +184,10 @@ contract LPFarmStrategy is  ReentrancyGuard, Context, IStrategy, IPuppetOfDispat
 
     function setSwapLimit(uint256 _swapLimit) external onlyOperator {
        swapLimit = _swapLimit;
+    }
+
+    function setStableSlippageTolerance(uint256 _stableSlippageTolerance) external onlyOperator {
+        stableSlippageTolerance = _stableSlippageTolerance;
     }
 
     function setPoolId(uint256 _poolId) external onlyOperator {
