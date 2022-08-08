@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8.0;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.1;
 
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import '../interface/IChainBridgeStrategy.sol';
 import '../interface/IPuppetOfDispatcher.sol';
+import "@openzeppelin/contracts/access/Roles.sol";
 contract ChainBridgeStrategy is Context, IChainBridgeStrategy,IPuppetOfDispatcher {
     using SafeERC20 for IERC20;
 
